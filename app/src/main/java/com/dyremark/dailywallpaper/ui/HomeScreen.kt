@@ -86,6 +86,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                 folderName = state.folderName,
                 imageCount = state.imageCount,
                 onChooseFolder = { folderPicker.launch(null) },
+                onRescan = viewModel::rescanFolder,
             )
             TargetCard(target = state.target, onTargetChange = viewModel::setTarget)
             RotationCard(
@@ -120,10 +121,14 @@ private fun FolderCard(
     folderName: String?,
     imageCount: Int?,
     onChooseFolder: () -> Unit,
+    onRescan: () -> Unit,
 ) {
     SectionCard(title = "Source folder") {
         if (folderName == null) {
             Text("No folder selected yet.")
+            OutlinedButton(onClick = onChooseFolder, modifier = Modifier.fillMaxWidth()) {
+                Text("Choose folder")
+            }
         } else {
             Text(folderName, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
@@ -133,9 +138,14 @@ private fun FolderCard(
                     else -> "$imageCount images"
                 },
             )
-        }
-        OutlinedButton(onClick = onChooseFolder, modifier = Modifier.fillMaxWidth()) {
-            Text(if (folderName == null) "Choose folder" else "Change folder")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = onChooseFolder, modifier = Modifier.weight(1f)) {
+                    Text("Change folder")
+                }
+                OutlinedButton(onClick = onRescan, modifier = Modifier.weight(1f)) {
+                    Text("Rescan")
+                }
+            }
         }
     }
 }

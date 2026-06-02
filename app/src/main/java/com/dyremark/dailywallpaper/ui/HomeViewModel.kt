@@ -108,6 +108,25 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Re-scans the current folder, picking up files added or removed elsewhere. */
+    fun rescanFolder() {
+        val folderUri = _uiState.value.folderUri ?: return
+        viewModelScope.launch {
+            folders.invalidate()
+            refreshFolderInfo(folderUri)
+            val count = _uiState.value.imageCount
+            _uiState.update {
+                it.copy(
+                    status = if (count != null) {
+                        "Rescanned — $count image${if (count == 1) "" else "s"}"
+                    } else {
+                        "Folder rescanned"
+                    },
+                )
+            }
+        }
+    }
+
     fun consumeStatus() {
         _uiState.update { it.copy(status = null) }
     }
