@@ -18,10 +18,6 @@ import kotlinx.coroutines.withContext
  */
 class FolderRepository(private val context: Context) {
 
-    private val lock = Any()
-    @Volatile private var cacheKey: String? = null
-    @Volatile private var cachedIds: List<String> = emptyList()
-
     /** Human-readable name of the picked folder, or null if it can't be resolved. */
     fun folderName(treeUri: Uri): String? =
         DocumentFile.fromTreeUri(context, treeUri)?.name
@@ -68,6 +64,15 @@ class FolderRepository(private val context: Context) {
             cachedIds = ids
         }
         return ids
+    }
+
+    companion object {
+        // Process-wide cache so every entry point — the screen, the manual button, the widget,
+        // and the background worker — shares a single scan instead of re-listing the folder each
+        // time. Stays warm until invalidate() (Rescan), a folder change, or the process is killed.
+        private val lock = Any()
+        @Volatile private var cacheKey: String? = null
+        @Volatile private var cachedIds: List<String> = emptyList()
     }
 
     private fun collectImageDocumentIds(treeUri: Uri): List<String> {
