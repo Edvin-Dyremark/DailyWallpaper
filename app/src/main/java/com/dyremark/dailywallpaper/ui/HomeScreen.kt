@@ -19,6 +19,7 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -98,8 +99,12 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                 enabled = state.folderUri != null && !state.busy,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text(if (state.busy) "Setting wallpaper…" else "Set wallpaper now")
+                Text(if (state.busy) "Loading…" else "Next wallpaper")
             }
+            Text(
+                text = "Tap any time for a new wallpaper — no time limit.",
+                style = MaterialTheme.typography.bodySmall,
+            )
         }
     }
 }
