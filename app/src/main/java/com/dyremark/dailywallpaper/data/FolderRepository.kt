@@ -10,19 +10,25 @@ import kotlinx.coroutines.withContext
 /**
  * Lists images inside a user-picked SAF tree and picks one at random.
  *
- * Designed to scale to folders with thousands of images: it queries the children with a raw
- * [android.content.ContentResolver] cursor projecting only the document id + mime type (never the
- * slow [DocumentFile.listFiles] wrappers), and only collects lightweight id strings.
+ * Designed to scale to folders with thousands of images:
+ *  - Lists children with a raw [android.content.ContentResolver] cursor projecting only the
+ *    document id + mime type (never the slow [DocumentFile.listFiles] wrappers).
+ *  - **Caches the id list in memory** keyed by folder, so repeated "next wallpaper" taps don't
+ *    re-scan the whole folder every time — only the first access (or a changed folder) scans.
  */
 class FolderRepository(private val context: Context) {
+
+    private val lock = Any()
+    @Volatile private var cacheKey: String? = null
+    @Volatile private var cachedIds: List<String> = emptyList()
 
     /** Human-readable name of the picked folder, or null if it can't be resolved. */
     fun folderName(treeUri: Uri): String? =
         DocumentFile.fromTreeUri(context, treeUri)?.name
 
-    /** Number of images in the folder. */
+    /** Number of images in the folder (served from the cache once scanned). */
     suspend fun imageCount(treeUri: Uri): Int = withContext(Dispatchers.IO) {
-        collectImageDocumentIds(treeUri).size
+        imageIds(treeUri).size
     }
 
     /**
@@ -30,13 +36,12 @@ class FolderRepository(private val context: Context) {
      * more than one image. Returns null if the folder has no images.
      */
     suspend fun pickRandomImage(treeUri: Uri, exclude: Uri?): Uri? = withContext(Dispatchers.IO) {
-        val ids = collectImageDocumentIds(treeUri)
+        val ids = imageIds(treeUri)
         if (ids.isEmpty()) return@withContext null
 
         var chosen = ids[ids.indices.random()]
         if (ids.size > 1 && exclude != null) {
             val excludedId = runCatching { DocumentsContract.getDocumentId(exclude) }.getOrNull()
-            // Re-roll a few times to dodge an immediate repeat without scanning the whole list.
             var attempts = 0
             while (chosen == excludedId && attempts < 5) {
                 chosen = ids[ids.indices.random()]
@@ -44,6 +49,25 @@ class FolderRepository(private val context: Context) {
             }
         }
         DocumentsContract.buildDocumentUriUsingTree(treeUri, chosen)
+    }
+
+    /** Drops the cached listing so the next access re-scans (e.g. after the user adds photos). */
+    fun invalidate() = synchronized(lock) {
+        cacheKey = null
+        cachedIds = emptyList()
+    }
+
+    private fun imageIds(treeUri: Uri): List<String> {
+        val key = treeUri.toString()
+        synchronized(lock) {
+            if (cacheKey == key && cachedIds.isNotEmpty()) return cachedIds
+        }
+        val ids = collectImageDocumentIds(treeUri)
+        synchronized(lock) {
+            cacheKey = key
+            cachedIds = ids
+        }
+        return ids
     }
 
     private fun collectImageDocumentIds(treeUri: Uri): List<String> {
