@@ -13,6 +13,8 @@ class WallpaperWorker(
 
     override suspend fun doWork(): Result {
         val result = SetNextWallpaperUseCase.create(applicationContext).invoke()
-        return if (result.isSuccess) Result.success() else Result.retry()
+        // failure() (not retry()) so a one-off widget/manual run doesn't loop when there's no
+        // folder or images; the periodic schedule still fires again next interval regardless.
+        return if (result.isSuccess) Result.success() else Result.failure()
     }
 }

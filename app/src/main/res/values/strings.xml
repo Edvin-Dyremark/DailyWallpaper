@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Daily Wallpaper</string>
+    <string name="widget_next_wallpaper">Next wallpaper</string>
+    <string name="widget_description">Tap to set the next random wallpaper.</string>
 </resources>
