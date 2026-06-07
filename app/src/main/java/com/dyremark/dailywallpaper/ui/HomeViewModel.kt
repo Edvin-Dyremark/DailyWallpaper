@@ -9,6 +9,7 @@ import com.dyremark.dailywallpaper.data.FolderRepository
 import com.dyremark.dailywallpaper.data.SettingsRepository
 import com.dyremark.dailywallpaper.data.WallpaperTarget
 import com.dyremark.dailywallpaper.domain.SetNextWallpaperUseCase
+import com.dyremark.dailywallpaper.domain.WallpaperResult
 import com.dyremark.dailywallpaper.work.Scheduler
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -94,17 +95,13 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         if (_uiState.value.busy) return
         viewModelScope.launch {
             _uiState.update { it.copy(busy = true, status = null) }
-            val result = useCase()
-            _uiState.update {
-                it.copy(
-                    busy = false,
-                    status = if (result.isSuccess) {
-                        "Wallpaper updated"
-                    } else {
-                        result.exceptionOrNull()?.message ?: "Failed to set wallpaper"
-                    },
-                )
+            val status = when (val result = useCase()) {
+                WallpaperResult.Success -> "Wallpaper updated"
+                WallpaperResult.NoFolder -> "Pick a folder first"
+                WallpaperResult.NoImages -> "No images found in the folder"
+                is WallpaperResult.Error -> result.cause.message ?: "Failed to set wallpaper"
             }
+            _uiState.update { it.copy(busy = false, status = status) }
         }
     }
 
