@@ -7,6 +7,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.media.ExifInterface
 import android.net.Uri
+import android.view.WindowManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.math.max
@@ -20,10 +21,10 @@ class WallpaperSetter(private val context: Context) {
         withContext(Dispatchers.IO) {
             runCatching {
                 val wm = WallpaperManager.getInstance(context)
-                val targetW = wm.desiredMinimumWidth.takeIf { it > 0 }
-                    ?: context.resources.displayMetrics.widthPixels
-                val targetH = wm.desiredMinimumHeight.takeIf { it > 0 }
-                    ?: context.resources.displayMetrics.heightPixels
+                // Target the actual screen size, NOT WallpaperManager.desiredMinimumWidth — the
+                // latter is often ~2x the screen width (reserved for launcher scroll/parallax),
+                // which would scale the photo up and show only its centre slice ("zoomed in").
+                val (targetW, targetH) = screenSize()
 
                 val bitmap = decodeDownsampled(imageUri, targetW, targetH)
                     ?: error("Could not decode image: $imageUri")
@@ -35,6 +36,17 @@ class WallpaperSetter(private val context: Context) {
                 finalBitmap.recycle()
             }
         }
+
+    /** Full display size in pixels (the area a wallpaper actually covers). */
+    private fun screenSize(): Pair<Int, Int> {
+        val windowManager = context.getSystemService(WindowManager::class.java)
+        val bounds = windowManager?.maximumWindowMetrics?.bounds
+        val width = (bounds?.width() ?: 0).takeIf { it > 0 }
+            ?: context.resources.displayMetrics.widthPixels
+        val height = (bounds?.height() ?: 0).takeIf { it > 0 }
+            ?: context.resources.displayMetrics.heightPixels
+        return width to height
+    }
 
     /** Decodes the image scaled down so its smaller dimension still covers the target. */
     private fun decodeDownsampled(uri: Uri, targetW: Int, targetH: Int): Bitmap? {
