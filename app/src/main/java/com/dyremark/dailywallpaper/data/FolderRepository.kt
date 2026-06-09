@@ -75,21 +75,33 @@ class FolderRepository(private val context: Context) {
         @Volatile private var cachedIds: List<String> = emptyList()
     }
 
+    /**
+     * Walks the whole tree — the picked folder and every subfolder, at any depth — collecting the
+     * document ids of all images. Uses an explicit stack (iterative DFS) so deep folder trees can't
+     * overflow the call stack.
+     */
     private fun collectImageDocumentIds(treeUri: Uri): List<String> {
-        val treeDocId = DocumentsContract.getTreeDocumentId(treeUri)
-        val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, treeDocId)
         val projection = arrayOf(
             DocumentsContract.Document.COLUMN_DOCUMENT_ID,
             DocumentsContract.Document.COLUMN_MIME_TYPE,
         )
         val ids = ArrayList<String>()
-        context.contentResolver.query(childrenUri, projection, null, null, null)?.use { cursor ->
-            val idCol = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
-            val mimeCol = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_MIME_TYPE)
-            while (cursor.moveToNext()) {
-                val mime = cursor.getString(mimeCol)
-                if (mime != null && mime.startsWith("image/")) {
-                    ids.add(cursor.getString(idCol))
+        val foldersToScan = ArrayDeque<String>()
+        foldersToScan.addLast(DocumentsContract.getTreeDocumentId(treeUri))
+
+        while (foldersToScan.isNotEmpty()) {
+            val folderDocId = foldersToScan.removeLast()
+            val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, folderDocId)
+            context.contentResolver.query(childrenUri, projection, null, null, null)?.use { cursor ->
+                val idCol = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
+                val mimeCol = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_MIME_TYPE)
+                while (cursor.moveToNext()) {
+                    val mime = cursor.getString(mimeCol) ?: continue
+                    val id = cursor.getString(idCol)
+                    when {
+                        mime == DocumentsContract.Document.MIME_TYPE_DIR -> foldersToScan.addLast(id)
+                        mime.startsWith("image/") -> ids.add(id)
+                    }
                 }
             }
         }
